@@ -3,7 +3,8 @@ services:
     build: .
     container_name: uap-project-tracker
     ports:
-      - "8080:8080"
+      - "2255:2255"
     volumes:
       - ./data:/app/data
+      - /opt/uap-project-tracker/certs:/opt/certs:ro
     restart: unless-stopped
