@@ -2,5 +2,5 @@ data/*.db
 __pycache__/
 *.pyc
 .env
-app/certs/*.key
-app/certs/*.crt
+certs/*.key
+certs/*.crt
