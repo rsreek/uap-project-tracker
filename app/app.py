@@ -1,0 +1,75 @@
+from flask import Flask, render_template, request, redirect, jsonify
+import sqlite3, json
+from pathlib import Path
+
+app = Flask(__name__)
+DB = Path("/app/data/tracker.db")
+
+DEFAULT_COLUMNS = [
+    ("Project / Client", "text"),
+    ("Collected Details", "text"),
+    ("Defender Install", "status"),
+    ("Upstream Server", "text"),
+    ("UAP Installation", "status"),
+    ("Traffic Tap", "status"),
+]
+
+def db():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS columns_tbl (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT NOT NULL)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL DEFAULT '{}')""")
+    if conn.execute("SELECT COUNT(*) FROM columns_tbl").fetchone()[0] == 0:
+        conn.executemany("INSERT INTO columns_tbl(name,type) VALUES (?,?)", DEFAULT_COLUMNS)
+    conn.commit()
+    conn.close()
+
+@app.route("/")
+def index():
+    conn = db()
+    columns = conn.execute("SELECT * FROM columns_tbl ORDER BY id").fetchall()
+    rows = conn.execute("SELECT * FROM projects ORDER BY id DESC").fetchall()
+    projects = [{"id": r["id"], "data": json.loads(r["data"])} for r in rows]
+    conn.close()
+    return render_template("index.html", columns=columns, projects=projects)
+
+@app.post("/project/save")
+def save_project():
+    pid = request.form.get("id")
+    conn = db()
+    cols = conn.execute("SELECT * FROM columns_tbl ORDER BY id").fetchall()
+    data = {str(c["id"]): request.form.get(f"col_{c['id']}", "") for c in cols}
+    if pid:
+        conn.execute("UPDATE projects SET data=? WHERE id=?", (json.dumps(data), pid))
+    else:
+        conn.execute("INSERT INTO projects(data) VALUES (?)", (json.dumps(data),))
+    conn.commit(); conn.close()
+    return redirect("/")
+
+@app.post("/project/delete/<int:pid>")
+def delete_project(pid):
+    conn = db(); conn.execute("DELETE FROM projects WHERE id=?", (pid,)); conn.commit(); conn.close()
+    return redirect("/")
+
+@app.post("/column/add")
+def add_column():
+    name = request.form.get("name","").strip()
+    ctype = request.form.get("type","text")
+    if name:
+        conn = db(); conn.execute("INSERT INTO columns_tbl(name,type) VALUES (?,?)",(name,ctype)); conn.commit(); conn.close()
+    return redirect("/")
+
+@app.post("/column/delete/<int:cid>")
+def delete_column(cid):
+    conn = db(); conn.execute("DELETE FROM columns_tbl WHERE id=?", (cid,)); conn.commit(); conn.close()
+    return redirect("/")
+
+if __name__ == "__main__":
+    init_db()
+    app.run(host="0.0.0.0", port=8080)

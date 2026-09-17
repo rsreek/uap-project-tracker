@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAP Project Tracker</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div><h1>UAP Project Tracker</h1><p>Customer / deployment tracking</p></div>
+  <button onclick="openModal('projectModal')">+ Add Project</button>
+</header>
+
+<section class="stats">
+  <div><b>{{ projects|length }}</b><span>Total Projects</span></div>
+  <div><b>{{ projects|selectattr('data', 'defined')|list|length }}</b><span>Tracked</span></div>
+</section>
+
+<div class="toolbar">
+  <input id="search" placeholder="Search projects..." onkeyup="filterTable()">
+  <button class="secondary" onclick="openModal('columnModal')">+ Add Column</button>
+</div>
+
+<div class="table-wrap">
+<table id="tracker">
+<thead><tr>
+{% for c in columns %}<th>{{ c.name }}</th>{% endfor %}
+<th>Actions</th>
+</tr></thead>
+<tbody>
+{% for p in projects %}
+<tr>
+{% for c in columns %}
+<td>
+{% set v = p.data.get(c.id|string, '') %}
+{% if c.type == 'status' %}
+<span class="status {{ v|lower|replace(' ','-') }}">{{ v or 'Not Started' }}</span>
+{% else %}{{ v }}{% endif %}
+</td>
+{% endfor %}
+<td class="actions">
+<button onclick='editProject({{ p.id }}, {{ p.data|tojson }})'>Edit</button>
+<form method="post" action="/project/delete/{{ p.id }}" onsubmit="return confirm('Delete this project?')"><button class="danger">Delete</button></form>
+</td>
+</tr>
+{% else %}
+<tr><td colspan="{{ columns|length + 1 }}" class="empty">No projects yet. Click “+ Add Project”.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<!-- Project modal -->
+<div id="projectModal" class="modal">
+<div class="modal-box"><span class="close" onclick="closeModal('projectModal')">×</span>
+<h2 id="projectTitle">Add Project</h2>
+<form method="post" action="/project/save">
+<input type="hidden" name="id" id="projectId">
+{% for c in columns %}
+<label>{{ c.name }}</label>
+{% if c.type == 'status' %}
+<select name="col_{{ c.id }}" id="col_{{ c.id }}">
+<option>Not Started</option><option>In Progress</option><option>Completed</option><option>N/A</option>
+</select>
+{% else %}
+<textarea name="col_{{ c.id }}" id="col_{{ c.id }}" rows="2"></textarea>
+{% endif %}
+{% endfor %}
+<button class="save" type="submit">Save Project</button>
+</form></div></div>
+
+<!-- Column modal -->
+<div id="columnModal" class="modal">
+<div class="modal-box"><span class="close" onclick="closeModal('columnModal')">×</span>
+<h2>Add Custom Column</h2>
+<form method="post" action="/column/add">
+<label>Column Name</label><input name="name" required placeholder="e.g. Certificate Status">
+<label>Column Type</label>
+<select name="type"><option value="text">Text</option><option value="status">Status</option></select>
+<button class="save" type="submit">Add Column</button>
+</form>
+<hr><h3>Existing Columns</h3>
+{% for c in columns %}
+<div class="column-row"><span>{{ c.name }}</span>
+{% if c.id > 6 %}<form method="post" action="/column/delete/{{ c.id }}"><button class="danger">Remove</button></form>{% endif %}
+</div>
+{% endfor %}
+</div></div>
+
+<script>
+function openModal(id){document.getElementById(id).style.display='flex'}
+function closeModal(id){document.getElementById(id).style.display='none'}
+function editProject(id,data){
+ document.getElementById('projectId').value=id;
+ document.getElementById('projectTitle').innerText='Edit Project';
+ for(const [k,v] of Object.entries(data)){const el=document.getElementById('col_'+k); if(el) el.value=v}
+ openModal('projectModal')
+}
+function filterTable(){
+ const q=document.getElementById('search').value.toLowerCase();
+ document.querySelectorAll('#tracker tbody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none')
+}
+window.onclick=e=>{if(e.target.classList.contains('modal'))e.target.style.display='none'}
+</script>
+</body></html>
